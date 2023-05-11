@@ -22,6 +22,17 @@ struct HitInfo
     float t;
 };
 
+vec3 BackgroundColor(Ray ray)
+{
+    float y = ray.dir.y;
+    y = y / 2.0 + 0.5;
+
+    vec3 bottomColor = vec3(0.8, 0.9, 1.0);
+    vec3 topColor = vec3(0.35, 0.7, 1.0);
+
+    return mix(bottomColor, topColor, y);
+}
+
 bool IntersectSphere(Ray ray, vec3 center, float radius, float tmax, out HitInfo hit)
 {
     vec3 oc = ray.origin - center;
@@ -65,5 +76,5 @@ void main()
         return;
     }
 
-    FragColor = vec4(uv.xy, 0.1, 1.0);
+    FragColor = vec4(BackgroundColor(ray), 1.0);
 }

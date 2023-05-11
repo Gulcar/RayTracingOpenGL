@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 
 int g_winWidth = 1600;
 int g_winHeight = 900;
@@ -12,6 +13,11 @@ void OnResize(GLFWwindow* window, int width, int height)
     g_winWidth = width;
     g_winHeight = height;
 }
+
+struct Vec3
+{
+    float x, y, z;
+};
 
 uint32_t CreateBuffers()
 {
@@ -127,11 +133,18 @@ int main()
 
     glUseProgram(shaderProgram);
 
+    Vec3 camPos = { 0.f, 0.f, 0.f };
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
+
         if (glfwGetKey(window, GLFW_KEY_ESCAPE))
             glfwSetWindowShouldClose(window, true);
+        if (glfwGetKey(window, GLFW_KEY_W))
+            camPos.z -= 0.01f;
+        if (glfwGetKey(window, GLFW_KEY_S))
+            camPos.z += 0.01f;
 
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -142,12 +155,17 @@ int main()
         static int uCamUpLoc = glGetUniformLocation(shaderProgram, "uCamUp");
         static int uRayOriginLoc = glGetUniformLocation(shaderProgram, "uRayOrigin");
 
+        float fovy = 60.0f;
+
+        float viewportHeight = tan(fovy * 3.14159f / 180.0f / 2.0f) * 2.0f;
+        float viewportWidth = viewportHeight * g_winWidth / g_winHeight;
+
         glUniform1f(uWinWidthLoc, g_winWidth);
         glUniform1f(uWinHeightLoc, g_winHeight);
-        glUniform3f(uBotLeftRayDirLoc, -1.f, -1.f, -1.f);
-        glUniform3f(uCamRightLoc, 2.f, 0.f, 0.f);
-        glUniform3f(uCamUpLoc, 0.f, 2.f, 0.f);
-        glUniform3f(uRayOriginLoc, 0.f, 0.f, 0.f);
+        glUniform3f(uBotLeftRayDirLoc, -viewportWidth / 2.f, -viewportHeight / 2.f, camPos.z - 1.0f);
+        glUniform3f(uCamRightLoc, viewportWidth, 0.f, 0.f);
+        glUniform3f(uCamUpLoc, 0.f, viewportHeight, 0.f);
+        glUniform3fv(uRayOriginLoc, 1, &camPos.x);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
