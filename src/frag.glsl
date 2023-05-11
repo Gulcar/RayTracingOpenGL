@@ -67,7 +67,7 @@ void main()
 
     Ray ray;
     ray.origin = uRayOrigin;
-    ray.dir = uBotLeftRayDir + uv.x * uCamRight + uv.y * uCamUp - uRayOrigin;
+    ray.dir = uBotLeftRayDir + uv.x * uCamRight + uv.y * uCamUp;
 
     HitInfo hit;
     if (IntersectSphere(ray, vec3(0.0, 0.0, -1.0), 0.5, 1e30f, hit))
