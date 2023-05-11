@@ -3,9 +3,14 @@
 #include <cstdio>
 #include <cstdlib>
 
+int g_winWidth = 1600;
+int g_winHeight = 900;
+
 void OnResize(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
+    g_winWidth = width;
+    g_winHeight = height;
 }
 
 uint32_t CreateBuffers()
@@ -110,11 +115,11 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(1600, 900, "RayTracingOpenGL", 0, 0);
+    GLFWwindow* window = glfwCreateWindow(g_winWidth, g_winHeight, "RayTracingOpenGL", 0, 0);
     glfwMakeContextCurrent(window);
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
-    glViewport(0, 0, 1600, 900);
+    glViewport(0, 0, g_winWidth, g_winHeight);
     glfwSetFramebufferSizeCallback(window, OnResize);
 
     uint32_t vertexArray = CreateBuffers();
@@ -129,6 +134,20 @@ int main()
             glfwSetWindowShouldClose(window, true);
 
         glClear(GL_COLOR_BUFFER_BIT);
+
+        static int uWinWidthLoc = glGetUniformLocation(shaderProgram, "uWinWidth");
+        static int uWinHeightLoc = glGetUniformLocation(shaderProgram, "uWinHeight");
+        static int uBotLeftRayDirLoc = glGetUniformLocation(shaderProgram, "uBotLeftRayDir");
+        static int uCamRightLoc = glGetUniformLocation(shaderProgram, "uCamRight");
+        static int uCamUpLoc = glGetUniformLocation(shaderProgram, "uCamUp");
+        static int uRayOriginLoc = glGetUniformLocation(shaderProgram, "uRayOrigin");
+
+        glUniform1f(uWinWidthLoc, g_winWidth);
+        glUniform1f(uWinHeightLoc, g_winHeight);
+        glUniform3f(uBotLeftRayDirLoc, -1.f, -1.f, -1.f);
+        glUniform3f(uCamRightLoc, 2.f, 0.f, 0.f);
+        glUniform3f(uCamUpLoc, 0.f, 2.f, 0.f);
+        glUniform3f(uRayOriginLoc, 0.f, 0.f, 0.f);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
