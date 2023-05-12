@@ -7,7 +7,7 @@ class Vec3
 public:
 	float x, y, z;
 
-	constexpr Vec3() = default;
+	Vec3() = default;
 	constexpr Vec3(float x, float y, float z)
 		: x(x), y(y), z(z) {}
 

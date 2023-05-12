@@ -64,8 +64,6 @@ char* ReadFile(const char* filename)
 
     buf[fileLen] = '\0';
 
-    assert(ferror(file) == 0 && "File error");
-
     return buf;
 }
 
@@ -96,7 +94,7 @@ uint32_t CreateShaders(const char* vertFile, const char* fragFile)
         return shader;
     };
 
-    uint32_t vertexShader = createShader(vertFile, GL_VERTEX_SHADER);
+    static uint32_t vertexShader = createShader(vertFile, GL_VERTEX_SHADER);
     uint32_t fragmentShader = createShader(fragFile, GL_FRAGMENT_SHADER);
 
     uint32_t program = glCreateProgram();
@@ -135,11 +133,11 @@ int main()
     glViewport(0, 0, g_winWidth, g_winHeight);
     glfwSetFramebufferSizeCallback(window, OnResize);
 
-    uint32_t vertexArray = CreateBuffers();
-    uint32_t shaderProgram = CreateShaders("src/vert.glsl", "src/frag.glsl");
+    glfwSwapInterval(0);
 
-    glUseProgram(shaderProgram);
-    glBindVertexArray(vertexArray);
+    uint32_t vertexArray = CreateBuffers();
+    uint32_t shaderProgram1 = CreateShaders("src/vert.glsl", "src/frag1.glsl");
+    uint32_t shaderProgram2 = CreateShaders("src/vert.glsl", "src/frag2.glsl");
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -156,10 +154,15 @@ int main()
     Vec3 camPos = { 0.f, 0.f, 1.f };
     float rotationUp = 0.0f;
     float rotationRight = 0.0f;
+
     float moveSpeed = 2.0f;
+    float rotationSpeed = 1.0f;
 
     double prevMouseX, prevMouseY;
     glfwGetCursorPos(window, &prevMouseX, &prevMouseY);
+
+    int sceneIndex = 1;
+    uint32_t currentShaderProgram = -1;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -205,11 +208,11 @@ int main()
             double deltaMouseX = mouseX - prevMouseX;
             double deltaMouseY = mouseY - prevMouseY;
 
-            rotationRight -= deltaMouseX / 1000.0f;
-            rotationUp -= deltaMouseY / 1000.0f;
+            rotationRight -= deltaMouseX / 1000.0f * rotationSpeed;
+            rotationUp -= deltaMouseY / 1000.0f * rotationSpeed;
 
-            rotationUp = std::max(rotationUp, -3.14159f / 2.1f);
-            rotationUp = std::min(rotationUp, 3.14159f / 2.1f);
+            rotationUp = std::max(rotationUp, -3.14159f / 2.001f);
+            rotationUp = std::min(rotationUp, 3.14159f / 2.001f);
         }
         else
         {
@@ -223,12 +226,20 @@ int main()
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        static int uWinWidthLoc = glGetUniformLocation(shaderProgram, "uWinWidth");
-        static int uWinHeightLoc = glGetUniformLocation(shaderProgram, "uWinHeight");
-        static int uBotLeftRayDirLoc = glGetUniformLocation(shaderProgram, "uBotLeftRayDir");
-        static int uCamRightLoc = glGetUniformLocation(shaderProgram, "uCamRight");
-        static int uCamUpLoc = glGetUniformLocation(shaderProgram, "uCamUp");
-        static int uRayOriginLoc = glGetUniformLocation(shaderProgram, "uRayOrigin");
+        switch (sceneIndex)
+        {
+        case 1: currentShaderProgram = shaderProgram1; break;
+        case 2: currentShaderProgram = shaderProgram2; break;
+        }
+
+        glUseProgram(currentShaderProgram);
+
+        int uWinWidthLoc = glGetUniformLocation(currentShaderProgram, "uWinWidth");
+        int uWinHeightLoc = glGetUniformLocation(currentShaderProgram, "uWinHeight");
+        int uBotLeftRayDirLoc = glGetUniformLocation(currentShaderProgram, "uBotLeftRayDir");
+        int uCamRightLoc = glGetUniformLocation(currentShaderProgram, "uCamRight");
+        int uCamUpLoc = glGetUniformLocation(currentShaderProgram, "uCamUp");
+        int uRayOriginLoc = glGetUniformLocation(currentShaderProgram, "uRayOrigin");
 
         glUniform1f(uWinWidthLoc, g_winWidth);
         glUniform1f(uWinHeightLoc, g_winHeight);
@@ -249,10 +260,13 @@ int main()
             ImGui::Begin("RayTracingOpenGL", &imguiWinOpen);
 
             ImGui::Text("%.0ffps (%.2fms)", imguiIo.Framerate, 1000.0f / imguiIo.Framerate);
-            ImGui::Text("Camera Position: %.2f, %.2f, %.2f", camPos.x, camPos.y, camPos.z);
+            ImGui::InputInt("Scene Index", &sceneIndex);
+            ImGui::DragFloat3("Camera Position", &camPos.x, 0.3f);
             ImGui::DragFloat("Vertical FOV", &fovy, 0.3f);
             ImGui::DragFloat("Rotation Right", &rotationRight, 0.2f);
             ImGui::DragFloat("Rotation Up", &rotationUp, 0.1f);
+            ImGui::DragFloat("Move Speed", &moveSpeed, 0.3f);
+            ImGui::DragFloat("Rotatation Speed", &rotationSpeed, 0.3f);
             ImGui::Text("Cam Up: %.2f, %.2f, %.2f", camUp.x, camUp.y, camUp.z);
             ImGui::Text("Cam Right: %.2f, %.2f, %.2f", camRight.x, camRight.y, camRight.z);
             ImGui::Text("Forward Dir: %.2f, %.2f, %.2f", forwardDir.x, forwardDir.y, forwardDir.z);

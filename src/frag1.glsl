@@ -22,6 +22,15 @@ struct HitInfo
     float t;
 };
 
+struct Sphere
+{
+    vec3 position;
+    float radius;
+};
+
+const int numSpheres = 4;
+Sphere spheres[numSpheres];
+
 vec3 BackgroundColor(Ray ray)
 {
     float y = ray.dir.y;
@@ -47,10 +56,10 @@ bool IntersectSphere(Ray ray, vec3 center, float radius, float tmax, out HitInfo
     float sqrtD = sqrt(D);
     
     float x = (-b - sqrtD) / (2 * a);
-    if (x < 0.001f || x > tmax)
+    if (x < 0.01f || x > tmax)
     {
         x = (-b + sqrtD) / (2 * a);
-        if (x < 0.001f || x > tmax)
+        if (x < 0.01f || x > tmax)
             return false;
     }
 
@@ -61,6 +70,23 @@ bool IntersectSphere(Ray ray, vec3 center, float radius, float tmax, out HitInfo
     return true;
 }
 
+bool IntersectWorld(Ray ray, out HitInfo hit)
+{
+    float tmax = 1e30f;
+    bool didHit = false;
+
+    for (int i = 0; i < numSpheres; i++)
+    {
+        if (IntersectSphere(ray, spheres[i].position, spheres[i].radius, tmax, hit))
+        {
+            didHit = true;
+            tmax = hit.t;
+        }
+    }
+
+    return didHit;
+}
+
 void main()
 {
     vec2 uv = gl_FragCoord.xy / vec2(uWinWidth, uWinHeight);
@@ -69,8 +95,13 @@ void main()
     ray.origin = uRayOrigin;
     ray.dir = uBotLeftRayDir + uv.x * uCamRight + uv.y * uCamUp;
 
+    spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5);
+    spheres[1] = Sphere(vec3(0.0, -100.5, -1.0), 100.0);
+    spheres[2] = Sphere(vec3(2.0, 0.0, 0.0), 0.5);
+    spheres[3] = Sphere(vec3(0.0, -1200.5, -1.0), 1000.0);
+
     HitInfo hit;
-    if (IntersectSphere(ray, vec3(0.0, 0.0, -1.0), 0.5, 1e30f, hit))
+    if (IntersectWorld(ray, hit))
     {
         FragColor = vec4(hit.normal / 2.0 + vec3(0.5), 1.0);
         return;
