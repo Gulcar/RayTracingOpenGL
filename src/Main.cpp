@@ -134,6 +134,7 @@ int main()
     glfwSetFramebufferSizeCallback(window, OnResize);
 
     glfwSwapInterval(0);
+    bool vsync = false;
 
     uint32_t vertexArray = CreateBuffers();
     uint32_t shaderProgram1 = CreateShaders("src/vert.glsl", "src/frag1.glsl");
@@ -163,6 +164,9 @@ int main()
 
     int sceneIndex = 1;
     uint32_t currentShaderProgram = -1;
+
+    float tmin = 0.01f;
+    int maxRayDepth = 8;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -240,6 +244,8 @@ int main()
         int uCamRightLoc = glGetUniformLocation(currentShaderProgram, "uCamRight");
         int uCamUpLoc = glGetUniformLocation(currentShaderProgram, "uCamUp");
         int uRayOriginLoc = glGetUniformLocation(currentShaderProgram, "uRayOrigin");
+        int uTMinLoc = glGetUniformLocation(currentShaderProgram, "uTMin");
+        int uMaxRayDepth = glGetUniformLocation(currentShaderProgram, "uMaxRayDepth");
 
         glUniform1f(uWinWidthLoc, g_winWidth);
         glUniform1f(uWinHeightLoc, g_winHeight);
@@ -247,6 +253,8 @@ int main()
         glUniform3fv(uCamRightLoc, 1, &camRight.x);
         glUniform3fv(uCamUpLoc, 1, &camUp.x);
         glUniform3fv(uRayOriginLoc, 1, &camPos.x);
+        glUniform1f(uTMinLoc, tmin);
+        glUniform1i(uMaxRayDepth, maxRayDepth);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -267,6 +275,9 @@ int main()
             ImGui::DragFloat("Rotation Up", &rotationUp, 0.1f);
             ImGui::DragFloat("Move Speed", &moveSpeed, 0.3f);
             ImGui::DragFloat("Rotatation Speed", &rotationSpeed, 0.3f);
+            if (ImGui::Checkbox("VSync", &vsync)) glfwSwapInterval(vsync ? 1 : 0);
+            ImGui::InputInt("Max Ray Depth", &maxRayDepth);
+            ImGui::DragFloat("T Min", &tmin);
             ImGui::Text("Cam Up: %.2f, %.2f, %.2f", camUp.x, camUp.y, camUp.z);
             ImGui::Text("Cam Right: %.2f, %.2f, %.2f", camRight.x, camRight.y, camRight.z);
             ImGui::Text("Forward Dir: %.2f, %.2f, %.2f", forwardDir.x, forwardDir.y, forwardDir.z);

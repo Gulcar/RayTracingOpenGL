@@ -8,6 +8,8 @@ uniform vec3 uBotLeftRayDir;
 uniform vec3 uCamRight;
 uniform vec3 uCamUp;
 uniform vec3 uRayOrigin;
+uniform float uTMin;
+uniform int uMaxRayDepth;
 
 struct Ray
 {
