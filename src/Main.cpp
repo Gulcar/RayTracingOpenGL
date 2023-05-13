@@ -12,12 +12,41 @@
 
 int g_winWidth = 1600;
 int g_winHeight = 900;
+uint32_t g_avgImage;
+int g_imageFrames = 0;
+
+void ResetImageFrames()
+{
+    g_imageFrames = 0;
+}
+
+uint32_t CreateAvgImage(int width, int height)
+{
+    uint32_t texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    glBindImageTexture(0, texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+
+    return texture;
+}
 
 void OnResize(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
     g_winWidth = width;
     g_winHeight = height;
+
+    ResetImageFrames();
+    glDeleteTextures(1, &g_avgImage);
+    g_avgImage = CreateAvgImage(g_winWidth, g_winHeight);
 }
 
 uint32_t CreateBuffers()
@@ -122,13 +151,15 @@ int main()
     printf("pozdravljen svet\n");
 
     glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow* window = glfwCreateWindow(g_winWidth, g_winHeight, "RayTracingOpenGL", 0, 0);
     glfwMakeContextCurrent(window);
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+    printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
 
     glViewport(0, 0, g_winWidth, g_winHeight);
     glfwSetFramebufferSizeCallback(window, OnResize);
@@ -137,8 +168,11 @@ int main()
     bool vsync = false;
 
     uint32_t vertexArray = CreateBuffers();
+    g_avgImage = CreateAvgImage(g_winWidth, g_winHeight);
+
     uint32_t shaderProgram1 = CreateShaders("src/vert.glsl", "src/frag1.glsl");
     uint32_t shaderProgram2 = CreateShaders("src/vert.glsl", "src/frag2.glsl");
+    uint32_t shaderProgram3 = CreateShaders("src/vert.glsl", "src/frag3.glsl");
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -148,11 +182,12 @@ int main()
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
+    ImGui_ImplOpenGL3_Init("#version 430");
 
     bool imguiWinOpen = true;
 
     Vec3 camPos = { 0.f, 0.f, 1.f };
+    Vec3 prevCamPos = camPos;
     float rotationUp = 0.0f;
     float rotationRight = 0.0f;
 
@@ -165,7 +200,7 @@ int main()
     int sceneIndex = 1;
     uint32_t currentShaderProgram = -1;
 
-    float tmin = 0.01f;
+    float tmin = 0.001f;
     int maxRayDepth = 8;
 
     while (!glfwWindowShouldClose(window))
@@ -203,9 +238,17 @@ int main()
         if (glfwGetKey(window, GLFW_KEY_Q))
             camPos -= Vec3(0, 1, 0) * moveSpeed * imguiIo.DeltaTime;
 
+        if (prevCamPos != camPos)
+        {
+            prevCamPos = camPos;
+            ResetImageFrames();
+        }
+
         if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT))
         {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+            ResetImageFrames();
 
             double mouseX, mouseY;
             glfwGetCursorPos(window, &mouseX, &mouseY);
@@ -234,6 +277,7 @@ int main()
         {
         case 1: currentShaderProgram = shaderProgram1; break;
         case 2: currentShaderProgram = shaderProgram2; break;
+        case 3: currentShaderProgram = shaderProgram3; break;
         }
 
         glUseProgram(currentShaderProgram);
@@ -245,7 +289,8 @@ int main()
         int uCamUpLoc = glGetUniformLocation(currentShaderProgram, "uCamUp");
         int uRayOriginLoc = glGetUniformLocation(currentShaderProgram, "uRayOrigin");
         int uTMinLoc = glGetUniformLocation(currentShaderProgram, "uTMin");
-        int uMaxRayDepth = glGetUniformLocation(currentShaderProgram, "uMaxRayDepth");
+        int uMaxRayDepthLoc = glGetUniformLocation(currentShaderProgram, "uMaxRayDepth");
+        int uImageFramesLoc = glGetUniformLocation(currentShaderProgram, "uImageFrames");
 
         glUniform1f(uWinWidthLoc, g_winWidth);
         glUniform1f(uWinHeightLoc, g_winHeight);
@@ -254,9 +299,12 @@ int main()
         glUniform3fv(uCamUpLoc, 1, &camUp.x);
         glUniform3fv(uRayOriginLoc, 1, &camPos.x);
         glUniform1f(uTMinLoc, tmin);
-        glUniform1i(uMaxRayDepth, maxRayDepth);
+        glUniform1i(uMaxRayDepthLoc, maxRayDepth);
+        glUniform1i(uImageFramesLoc, g_imageFrames);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        g_imageFrames++;
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -268,21 +316,22 @@ int main()
             ImGui::Begin("RayTracingOpenGL", &imguiWinOpen);
 
             ImGui::Text("%.0ffps (%.2fms)", imguiIo.Framerate, 1000.0f / imguiIo.Framerate);
-            ImGui::InputInt("Scene Index", &sceneIndex);
+            if (ImGui::InputInt("Scene Index", &sceneIndex)) ResetImageFrames();
             ImGui::DragFloat3("Camera Position", &camPos.x, 0.3f);
-            ImGui::DragFloat("Vertical FOV", &fovy, 0.3f);
-            ImGui::DragFloat("Rotation Right", &rotationRight, 0.2f);
-            ImGui::DragFloat("Rotation Up", &rotationUp, 0.1f);
+            if (ImGui::DragFloat("Vertical FOV", &fovy, 0.3f)) ResetImageFrames();
+            if (ImGui::DragFloat("Rotation Right", &rotationRight, 0.2f)) ResetImageFrames();
+            if (ImGui::DragFloat("Rotation Up", &rotationUp, 0.1f)) ResetImageFrames();
             ImGui::DragFloat("Move Speed", &moveSpeed, 0.3f);
             ImGui::DragFloat("Rotatation Speed", &rotationSpeed, 0.3f);
             if (ImGui::Checkbox("VSync", &vsync)) glfwSwapInterval(vsync ? 1 : 0);
             ImGui::InputInt("Max Ray Depth", &maxRayDepth);
-            ImGui::DragFloat("T Min", &tmin);
+            if (ImGui::DragFloat("T Min", &tmin)) ResetImageFrames();
             ImGui::Text("Cam Up: %.2f, %.2f, %.2f", camUp.x, camUp.y, camUp.z);
             ImGui::Text("Cam Right: %.2f, %.2f, %.2f", camRight.x, camRight.y, camRight.z);
             ImGui::Text("Forward Dir: %.2f, %.2f, %.2f", forwardDir.x, forwardDir.y, forwardDir.z);
             ImGui::Text("Viewport Width: %.2f", viewportWidth);
             ImGui::Text("Viewport Height: %.2f", viewportHeight);
+            ImGui::Text("AvgImage Frames: %d", g_imageFrames);
 
             ImGui::End();
         }

@@ -12,6 +12,8 @@ uniform float uTMin;
 uniform int uMaxRayDepth;
 uniform int uImageFrames;
 
+layout(rgba32f, binding = 0) uniform image2D uAvgImage;
+
 struct Ray
 {
     vec3 origin;
@@ -29,6 +31,7 @@ struct Sphere
 {
     vec3 position;
     float radius;
+    vec3 color;
 };
 
 const int numSpheres = 3;
@@ -38,8 +41,16 @@ vec2 randCoords;
 
 float rand()
 {
-    randCoords *= 1.5;
+    randCoords *= 1.1;
     return fract(sin(dot(randCoords, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+vec2 randVec2()
+{
+    vec2 v;
+    v.x = rand() * 2.0 - 1.0;
+    v.y = rand() * 2.0 - 1.0;
+    return v;
 }
 
 vec3 randVec3()
@@ -56,7 +67,8 @@ vec3 randInSphere()
     for (int i = 0; i < 100; i++)
     {
         vec3 r = randVec3();
-        if (length(r) <= 1.0)
+        //if (length(r) <= 1.0)
+        if (dot(r,r) <= 1.0)
             return r;
     }
     return vec3(0.0);
@@ -101,7 +113,7 @@ bool IntersectSphere(Ray ray, vec3 center, float radius, float tmax, out HitInfo
     return true;
 }
 
-bool IntersectWorld(Ray ray, out HitInfo hit)
+bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color)
 {
     float tmax = 1e30f;
     bool didHit = false;
@@ -112,6 +124,7 @@ bool IntersectWorld(Ray ray, out HitInfo hit)
         {
             didHit = true;
             tmax = hit.t;
+            color = spheres[i].color;
         }
     }
 
@@ -125,19 +138,25 @@ void ReflectRay(inout Ray ray, HitInfo hit, float fuzz)
     ray.dir += randInSphere() * fuzz;
 }
 
+void ScatterRay(inout Ray ray, HitInfo hit)
+{
+    ray.origin = hit.point;
+    ray.dir = hit.normal + randInSphere();
+}
+
 void main()
 {
-    vec2 uv = gl_FragCoord.xy / vec2(uWinWidth, uWinHeight);
+    randCoords = gl_FragCoord.xy + vec2(uImageFrames) * 0.333;
 
-    randCoords = gl_FragCoord.xy;
+    vec2 uv = (gl_FragCoord.xy + randVec2() / 2.0)  / vec2(uWinWidth, uWinHeight);
 
     Ray ray;
     ray.origin = uRayOrigin;
     ray.dir = uBotLeftRayDir + uv.x * uCamRight + uv.y * uCamUp;
 
-    spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5);
-    spheres[1] = Sphere(vec3(0.0, -100.5, -1.0), 100.0);
-    spheres[2] = Sphere(vec3(1.0, 0.0, -1.0), 0.5);
+    spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5, vec3(0.9));
+    spheres[1] = Sphere(vec3(0.0, -100.5, -1.0), 100.0, vec3(0.12, 0.94, 0.35));
+    spheres[2] = Sphere(vec3(1.01, 0.0, -1.0), 0.5, vec3(0.9));
 
     int depth = 0;
 
@@ -146,10 +165,12 @@ void main()
     while (depth < uMaxRayDepth)
     {
         HitInfo hit;
-        if (IntersectWorld(ray, hit))
+        vec3 color;
+        if (IntersectWorld(ray, hit, color))
         {
-            li *= vec3(0.9);
-            ReflectRay(ray, hit, 0.0);
+            li *= color;
+            //ReflectRay(ray, hit, 0.0);
+            ScatterRay(ray, hit);
         }
         else
         {
@@ -165,6 +186,9 @@ void main()
 
     }
 
+    vec4 avg = imageLoad(uAvgImage, ivec2(gl_FragCoord.xy));
+    li = ((avg.rgb * uImageFrames) + li) / (uImageFrames + 1);
 
+    imageStore(uAvgImage, ivec2(gl_FragCoord.xy), vec4(li, 1.0));
     FragColor = vec4(li, 1.0);
 }

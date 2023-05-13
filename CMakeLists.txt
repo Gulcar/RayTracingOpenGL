@@ -5,7 +5,7 @@ project(RayTracingOpenGL)
 add_executable(${PROJECT_NAME}
     src/Main.cpp
 
-    deps/glad3.3/src/glad.c
+    deps/glad-4.3/src/glad.c
 
     deps/imgui/imgui.cpp
     deps/imgui/imgui_demo.cpp
@@ -19,7 +19,7 @@ add_executable(${PROJECT_NAME}
 add_subdirectory(deps/glfw)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    deps/glad3.3/include/
+    deps/glad-4.3/include/
     deps/glfw/include/
     deps/imgui/
 )

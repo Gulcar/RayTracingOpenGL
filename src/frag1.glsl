@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 out vec4 FragColor;
 
@@ -10,6 +10,7 @@ uniform vec3 uCamUp;
 uniform vec3 uRayOrigin;
 uniform float uTMin;
 uniform int uMaxRayDepth;
+uniform int uImageFrames;
 
 struct Ray
 {

@@ -55,6 +55,9 @@ public:
 	
 	friend Vec3 operator-(const Vec3& v) { return Vec3(-v.x, -v.y, -v.z); }
 
+	friend bool operator==(const Vec3& l, const Vec3& r) { return l.x == r.x && l.y == r.y && l.z == r.z; }
+	friend bool operator!=(const Vec3& l, const Vec3& r) { return !(l == r); }
+
 	float Length()
 	{
 		return std::sqrt(x * x + y * y + z * z);
