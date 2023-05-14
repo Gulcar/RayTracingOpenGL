@@ -11,6 +11,7 @@ uniform vec3 uRayOrigin;
 uniform float uTMin;
 uniform int uMaxRayDepth;
 uniform int uImageFrames;
+uniform float uReflectAmount;
 
 layout(rgba32f, binding = 0) uniform image2D uAvgImage;
 
@@ -80,28 +81,28 @@ vec3 BackgroundColor(Ray ray)
     y = y / 2.0 + 0.5;
 
     vec3 bottomColor = vec3(0.8, 0.9, 1.0);
-    vec3 topColor = vec3(0.35, 0.7, 1.0);
+    vec3 topColor = vec3(0.6, 0.8, 1.0);
 
     return mix(bottomColor, topColor, y);
 }
 
-bool IntersectSphere(Ray ray, vec3 center, float radius, float tmax, out HitInfo hit)
+bool IntersectSphere(Ray ray, vec3 center, float radius, float tmax, inout HitInfo hit)
 {
     vec3 oc = ray.origin - center;
 
     float a = dot(ray.dir, ray.dir);
-    float b = 2 * dot(ray.dir, oc);
+    float b = dot(ray.dir, oc);
     float c = dot(oc, oc) - radius * radius;
 
-    float D = b * b - 4 * a * c;
+    float D = b * b - a * c;
     if (D < 0.0) return false;
 
     float sqrtD = sqrt(D);
     
-    float x = (-b - sqrtD) / (2 * a);
+    float x = (-b - sqrtD) / a;
     if (x < uTMin || x > tmax)
     {
-        x = (-b + sqrtD) / (2 * a);
+        x = (-b + sqrtD) / a;
         if (x < uTMin || x > tmax)
             return false;
     }
@@ -113,10 +114,36 @@ bool IntersectSphere(Ray ray, vec3 center, float radius, float tmax, out HitInfo
     return true;
 }
 
+bool IntersectGroundPlane(Ray ray, float planeY, float tmax, inout HitInfo hit)
+{
+    // P = O + tD
+    // Py = Oy + tDy
+    // t = (Py - Oy) / Dy
+
+    float t = (planeY - ray.origin.y) / ray.dir.y;
+
+    // ce je ray.dir.y == 0.0 in dobimo t = +-inf tukej vrnemo false
+    if (t < uTMin || t > tmax)
+        return false;
+
+    hit.point = ray.origin + ray.dir * t;
+    hit.normal = (ray.dir.y > 0.0) ? vec3(0, -1, 0) : vec3(0, 1, 0);
+    hit.t = t;
+
+    return true;
+}
+
 bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color)
 {
-    float tmax = 1e30f;
+    float tmax = 1e30;
     bool didHit = false;
+
+    if (IntersectGroundPlane(ray, -0.5, tmax, hit))
+    {
+        didHit = true;
+        tmax = hit.t;
+        color = vec3(0.7, 0.5, 0.8);
+    }
 
     for (int i = 0; i < numSpheres; i++)
     {
@@ -131,25 +158,19 @@ bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color)
     return didHit;
 }
 
-void ReflectRay(inout Ray ray, HitInfo hit, float fuzz)
+void ScatterRay(inout Ray ray, HitInfo hit, float reflectAmount)
 {
     ray.origin = hit.point;
-    ray.dir = reflect(normalize(ray.dir), hit.normal);
-    ray.dir += randInSphere() * fuzz;
-}
 
-void ScatterRay(inout Ray ray, HitInfo hit)
-{
-    ray.origin = hit.point;
-    ray.dir = hit.normal + randInSphere();
+    vec3 diffuse = hit.normal + randInSphere();
+    vec3 reflected = reflect(normalize(ray.dir), hit.normal);
+
+    ray.dir = mix(diffuse, reflected, reflectAmount);
 }
 
 void main()
 {
     randCoords = (gl_FragCoord.xy + vec2(uImageFrames) * 0.333) / vec2(uWinWidth, uWinHeight);
-
-    //FragColor = vec4(vec3(rand()), 1.0);
-    //return;
 
     vec2 uv = (gl_FragCoord.xy + randVec2() / 2.0)  / vec2(uWinWidth, uWinHeight);
 
@@ -157,9 +178,9 @@ void main()
     ray.origin = uRayOrigin;
     ray.dir = uBotLeftRayDir + uv.x * uCamRight + uv.y * uCamUp;
 
-    spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5, vec3(0.9));
-    spheres[1] = Sphere(vec3(0.0, -100.5, -1.0), 100.0, vec3(0.12, 0.94, 0.35));
-    spheres[2] = Sphere(vec3(1.01, 0.0, -1.0), 0.5, vec3(0.9));
+    spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5, vec3(0.95));
+    spheres[1] = Sphere(vec3(1.01, 0.0, -1.0), 0.5, vec3(0.95, 0.05, 0.05));
+    spheres[2] = Sphere(vec3(3.0, 0.0, -2.0), 0.5, vec3(0.95));
 
     int depth = 0;
 
@@ -169,11 +190,11 @@ void main()
     {
         HitInfo hit;
         vec3 color;
+
         if (IntersectWorld(ray, hit, color))
         {
             li *= color;
-            //ReflectRay(ray, hit, 0.0);
-            ScatterRay(ray, hit);
+            ScatterRay(ray, hit, uReflectAmount);
         }
         else
         {
@@ -186,7 +207,6 @@ void main()
         {
             li = vec3(0.0);
         }
-
     }
 
     vec4 avg = imageLoad(uAvgImage, ivec2(gl_FragCoord.xy));

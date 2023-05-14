@@ -9,6 +9,7 @@
 #include <cmath>
 #include <string>
 #include <assert.h>
+#include <array>
 
 int g_winWidth = 1600;
 int g_winHeight = 900;
@@ -170,9 +171,11 @@ int main()
     uint32_t vertexArray = CreateBuffers();
     g_avgImage = CreateAvgImage(g_winWidth, g_winHeight);
 
-    uint32_t shaderProgram1 = CreateShaders("src/vert.glsl", "src/frag1.glsl");
-    uint32_t shaderProgram2 = CreateShaders("src/vert.glsl", "src/frag2.glsl");
-    uint32_t shaderProgram3 = CreateShaders("src/vert.glsl", "src/frag3.glsl");
+    std::array<uint32_t, 4> shaderPrograms;
+    shaderPrograms[0] = CreateShaders("src/vert.glsl", "src/frag1.glsl");
+    shaderPrograms[1] = CreateShaders("src/vert.glsl", "src/frag2.glsl");
+    shaderPrograms[2] = CreateShaders("src/vert.glsl", "src/frag3.glsl");
+    shaderPrograms[3] = CreateShaders("src/vert.glsl", "src/frag4.glsl");
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -202,6 +205,7 @@ int main()
 
     float tmin = 0.001f;
     int maxRayDepth = 8;
+    float reflectAmount = 0.0f;
 
     while (!glfwWindowShouldClose(window))
     {
@@ -273,15 +277,13 @@ int main()
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        switch (sceneIndex)
-        {
-        case 1: currentShaderProgram = shaderProgram1; break;
-        case 2: currentShaderProgram = shaderProgram2; break;
-        case 3: currentShaderProgram = shaderProgram3; break;
-        }
-
+        if (sceneIndex > 0 && sceneIndex <= shaderPrograms.size())
+            currentShaderProgram = shaderPrograms[sceneIndex - 1];
         glUseProgram(currentShaderProgram);
 
+        // tut ce currentShaderProgram nima vseh teh uniformov
+        // opengl ne naredi errorjev ampak glGetUniformLocation vrne -1
+        // in zato glUniform tiste uniforme samo ignorirajo (read docs)
         int uWinWidthLoc = glGetUniformLocation(currentShaderProgram, "uWinWidth");
         int uWinHeightLoc = glGetUniformLocation(currentShaderProgram, "uWinHeight");
         int uBotLeftRayDirLoc = glGetUniformLocation(currentShaderProgram, "uBotLeftRayDir");
@@ -291,6 +293,7 @@ int main()
         int uTMinLoc = glGetUniformLocation(currentShaderProgram, "uTMin");
         int uMaxRayDepthLoc = glGetUniformLocation(currentShaderProgram, "uMaxRayDepth");
         int uImageFramesLoc = glGetUniformLocation(currentShaderProgram, "uImageFrames");
+        int uReflectAmountLoc = glGetUniformLocation(currentShaderProgram, "uReflectAmount");
 
         glUniform1f(uWinWidthLoc, g_winWidth);
         glUniform1f(uWinHeightLoc, g_winHeight);
@@ -301,6 +304,7 @@ int main()
         glUniform1f(uTMinLoc, tmin);
         glUniform1i(uMaxRayDepthLoc, maxRayDepth);
         glUniform1i(uImageFramesLoc, g_imageFrames);
+        glUniform1f(uReflectAmountLoc, reflectAmount);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -325,7 +329,8 @@ int main()
             ImGui::DragFloat("Rotatation Speed", &rotationSpeed, 0.3f);
             if (ImGui::Checkbox("VSync", &vsync)) glfwSwapInterval(vsync ? 1 : 0);
             ImGui::InputInt("Max Ray Depth", &maxRayDepth);
-            if (ImGui::DragFloat("T Min", &tmin)) ResetImageFrames();
+            if (ImGui::DragFloat("T Min", &tmin, 0.01f, 0.0f, 0.0f, "%.6f")) ResetImageFrames();
+            if (ImGui::SliderFloat("Reflect Amount", &reflectAmount, 0.0f, 1.0f)) ResetImageFrames();
             ImGui::Text("Cam Up: %.2f, %.2f, %.2f", camUp.x, camUp.y, camUp.z);
             ImGui::Text("Cam Right: %.2f, %.2f, %.2f", camRight.x, camRight.y, camRight.z);
             ImGui::Text("Forward Dir: %.2f, %.2f, %.2f", forwardDir.x, forwardDir.y, forwardDir.z);
