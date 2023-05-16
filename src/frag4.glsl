@@ -12,6 +12,8 @@ uniform float uTMin;
 uniform int uMaxRayDepth;
 uniform int uImageFrames;
 uniform float uReflectAmount;
+uniform float uDOFStrength;
+uniform float uDOFDist;
 
 layout(rgba32f, binding = 0) uniform image2D uAvgImage;
 
@@ -176,7 +178,12 @@ void main()
 
     Ray ray;
     ray.origin = uRayOrigin;
-    ray.dir = uBotLeftRayDir + uv.x * uCamRight + uv.y * uCamUp;
+    vec3 dofOffset = randInSphere() * uDOFStrength / 2.0;
+    vec3 baseDir = normalize(uBotLeftRayDir + uv.x * uCamRight + uv.y * uCamUp);
+    dofOffset -= dot(dofOffset, baseDir) * baseDir;
+    ray.origin += dofOffset;
+    vec3 rayFocusPoint = baseDir * uDOFDist + uRayOrigin;
+    ray.dir = normalize(rayFocusPoint - ray.origin);
 
     spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5, vec3(0.95));
     spheres[1] = Sphere(vec3(1.01, 0.0, -1.0), 0.5, vec3(0.95, 0.05, 0.05));
@@ -208,6 +215,8 @@ void main()
             li = vec3(0.0);
         }
     }
+
+    //li = vec3(ray.dir.y / 2.0 + 0.5);
 
     vec4 avg = imageLoad(uAvgImage, ivec2(gl_FragCoord.xy));
     li = ((avg.rgb * uImageFrames) + li) / (uImageFrames + 1);
