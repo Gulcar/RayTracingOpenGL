@@ -35,6 +35,14 @@ struct Sphere
     vec3 position;
     float radius;
     vec3 color;
+    float reflectAmount;
+};
+
+struct Triangle
+{
+    vec3 v0;
+    vec3 v1;
+    vec3 v2;
 };
 
 const int numSpheres = 3;
@@ -135,7 +143,56 @@ bool IntersectGroundPlane(Ray ray, float planeY, float tmax, inout HitInfo hit)
     return true;
 }
 
-bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color)
+float TriangleArea(vec3 a, vec3 b, vec3 c)
+{
+    return length(cross(b - a, c - a)) / 2.0;
+}
+
+bool IntersectTriangle(Ray ray, Triangle tri, float tmax, inout HitInfo hit)
+{
+    vec3 edge1 = tri.v1 - tri.v0;
+    vec3 edge2 = tri.v2 - tri.v0;
+
+    vec3 normal = normalize(cross(edge2, edge1));
+
+    if (dot(normal, ray.dir) == 0.0)
+        return false; // ray je vzporeden s ravnino (plane) na kateri je trikotnik
+
+    // plane equation
+    // (p - p0) . n = 0
+    // plane intersection (https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersection)
+    // (O + tD - p0) . n = 0
+    // t(D . n) + (O - p0) . n = 0
+    // t = ((po - O) . n) / (D . n)
+
+    float t = dot((tri.v0 - ray.origin), normal) / dot(ray.dir, normal);
+    if (t < uTMin || t > tmax)
+        return false;
+
+    // https://www.youtube.com/watch?v=HYAgJN3x4GA
+    // P = A + w(B-A) + v(C-A)
+    // O + tD = A + w(B-A) + v(C-A)
+
+    vec3 p = ray.origin + ray.dir * t;
+
+    float a0 = TriangleArea(tri.v0, tri.v1, p);
+    float a1 = TriangleArea(tri.v0, tri.v2, p);
+    float a2 = TriangleArea(tri.v2, tri.v1, p);
+    float a = TriangleArea(tri.v0, tri.v1, tri.v2);
+
+    // tole z ploscinami ni najboljs ampak je neki
+
+    if (a0 + a1 + a2 > a + 0.001)
+        return false;
+
+    hit.point = p;
+    hit.normal = normal;
+    hit.t = t;
+
+    return true;
+}
+
+bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color, out float reflectAmount)
 {
     float tmax = 1e30;
     bool didHit = false;
@@ -145,6 +202,7 @@ bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color)
         didHit = true;
         tmax = hit.t;
         color = vec3(0.7, 0.5, 0.8);
+        reflectAmount = 0.0;
     }
 
     for (int i = 0; i < numSpheres; i++)
@@ -154,7 +212,38 @@ bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color)
             didHit = true;
             tmax = hit.t;
             color = spheres[i].color;
+            reflectAmount = spheres[i].reflectAmount;
         }
+    }
+
+    Triangle tri = { vec3(1,1,-1), vec3(2,2,-1), vec3(3,1,0) };
+    if (IntersectTriangle(ray, tri, tmax, hit))
+    {
+        didHit = true;
+        tmax = hit.t;
+        color = vec3(0.47, 0.85, 0.06);
+        reflectAmount = 0.0;
+    }
+    if (IntersectSphere(ray, tri.v0, 0.01, tmax, hit))
+    {
+        didHit = true;
+        tmax = hit.t;
+        color = vec3(1,0,0);
+        reflectAmount = 0.0;
+    }
+    if (IntersectSphere(ray, tri.v1, 0.01, tmax, hit))
+    {
+        didHit = true;
+        tmax = hit.t;
+        color = vec3(1,0,0);
+        reflectAmount = 0.0;
+    }
+    if (IntersectSphere(ray, tri.v2, 0.01, tmax, hit))
+    {
+        didHit = true;
+        tmax = hit.t;
+        color = vec3(1,0,0);
+        reflectAmount = 0.0;
     }
 
     return didHit;
@@ -185,9 +274,9 @@ void main()
     vec3 rayFocusPoint = baseDir * uDOFDist + uRayOrigin;
     ray.dir = normalize(rayFocusPoint - ray.origin);
 
-    spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5, vec3(0.95));
-    spheres[1] = Sphere(vec3(1.01, 0.0, -1.0), 0.5, vec3(0.95, 0.05, 0.05));
-    spheres[2] = Sphere(vec3(3.0, 0.0, -2.0), 0.5, vec3(0.95));
+    spheres[0] = Sphere(vec3(0.0, 0.0, -1.0), 0.5, vec3(0.95), 0.0);
+    spheres[1] = Sphere(vec3(1.01, 0.0, -1.0), 0.5, vec3(0.95, 0.05, 0.05), uReflectAmount);
+    spheres[2] = Sphere(vec3(3.0, 0.0, -2.0), 0.5, vec3(0.95), 0.0);
 
     int depth = 0;
 
@@ -197,11 +286,12 @@ void main()
     {
         HitInfo hit;
         vec3 color;
+        float reflectAmount;
 
-        if (IntersectWorld(ray, hit, color))
+        if (IntersectWorld(ray, hit, color, reflectAmount))
         {
             li *= color;
-            ScatterRay(ray, hit, uReflectAmount);
+            ScatterRay(ray, hit, reflectAmount);
         }
         else
         {
