@@ -87,6 +87,8 @@ vec3 randInSphere()
 
 vec3 BackgroundColor(Ray ray)
 {
+    ray.dir = normalize(ray.dir);
+
     float y = ray.dir.y;
     y = y / 2.0 + 0.5;
 
@@ -192,6 +194,96 @@ bool IntersectTriangle(Ray ray, Triangle tri, float tmax, inout HitInfo hit)
     return true;
 }
 
+void IntersectRectX(Ray ray, float po, vec2 limitsY, vec2 limitsZ, inout float tmax, inout HitInfo hit, inout bool didHit)
+{
+    // P = O + tD
+    // Px = Ox + tDx
+    // t = (Px - Ox) / Dx
+
+    float t = (po - ray.origin.x) / ray.dir.x;
+
+    if (t < uTMin || t > tmax)
+        return;
+
+    vec3 p = ray.origin + ray.dir * t;
+
+    if (p.y < limitsY.x || p.y > limitsY.y)
+        return;
+    if (p.z < limitsZ.x || p.z > limitsZ.y)
+        return;
+
+    hit.point = ray.origin + ray.dir * t;
+    hit.normal = (po < ray.origin.x) ? vec3(1, 0, 0) : vec3(-1, 0, 0);
+    hit.t = t;
+
+    tmax = t;
+
+    didHit = true;
+}
+
+void IntersectRectY(Ray ray, float po, vec2 limitsX, vec2 limitsZ, inout float tmax, inout HitInfo hit, inout bool didHit)
+{
+    float t = (po - ray.origin.y) / ray.dir.y;
+
+    if (t < uTMin || t > tmax)
+        return;
+
+    vec3 p = ray.origin + ray.dir * t;
+
+    if (p.x < limitsX.x || p.x > limitsX.y)
+        return;
+    if (p.z < limitsZ.x || p.z > limitsZ.y)
+        return;
+
+    hit.point = ray.origin + ray.dir * t;
+    hit.normal = (po < ray.origin.y) ? vec3(0, 1, 0) : vec3(0, -1, 0);
+    hit.t = t;
+
+    tmax = t;
+
+    didHit = true;
+}
+
+void IntersectRectZ(Ray ray, float po, vec2 limitsX, vec2 limitsY, inout float tmax, inout HitInfo hit, inout bool didHit)
+{
+    float t = (po - ray.origin.z) / ray.dir.z;
+
+    if (t < uTMin || t > tmax)
+        return;
+
+    vec3 p = ray.origin + ray.dir * t;
+
+    if (p.x < limitsX.x || p.x > limitsX.y)
+        return;
+    if (p.y < limitsY.x || p.y > limitsY.y)
+        return;
+
+    hit.point = ray.origin + ray.dir * t;
+    hit.normal = (po < ray.origin.z) ? vec3(0, 0, 1) : vec3(0, 0, -1);
+    hit.t = t;
+
+    tmax = t;
+
+    didHit = true;
+}
+
+bool IntersectAABB(Ray ray, vec3 pos, vec3 size, float tmax, inout HitInfo hit)
+{
+    vec3 minp = pos - size / 2.0;
+    vec3 maxp = pos + size / 2.0;
+
+    bool didHit = false;
+
+    IntersectRectX(ray, minp.x, vec2(minp.y, maxp.y), vec2(minp.z, maxp.z), tmax, hit, didHit);
+    IntersectRectX(ray, maxp.x, vec2(minp.y, maxp.y), vec2(minp.z, maxp.z), tmax, hit, didHit);
+    IntersectRectY(ray, minp.y, vec2(minp.x, maxp.x), vec2(minp.z, maxp.z), tmax, hit, didHit);
+    IntersectRectY(ray, maxp.y, vec2(minp.x, maxp.x), vec2(minp.z, maxp.z), tmax, hit, didHit);
+    IntersectRectZ(ray, minp.z, vec2(minp.x, maxp.x), vec2(minp.y, maxp.y), tmax, hit, didHit);
+    IntersectRectZ(ray, maxp.z, vec2(minp.x, maxp.x), vec2(minp.y, maxp.y), tmax, hit, didHit);
+
+    return didHit;
+}
+
 bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color, out float reflectAmount)
 {
     float tmax = 1e30;
@@ -214,6 +306,22 @@ bool IntersectWorld(Ray ray, out HitInfo hit, out vec3 color, out float reflectA
             color = spheres[i].color;
             reflectAmount = spheres[i].reflectAmount;
         }
+    }
+
+    if (IntersectAABB(ray, vec3(-3, 0, -3), vec3(1.0), tmax, hit))
+    {
+        didHit = true;
+        tmax = hit.t;
+        color = vec3(0.9);
+        reflectAmount = 0.0;
+    }
+
+    if (IntersectAABB(ray, vec3(-4, 1, -3), vec3(1.0, 3.0, 5.0), tmax, hit))
+    {
+        didHit = true;
+        tmax = hit.t;
+        color = vec3(0.9);
+        reflectAmount = 0.0;
     }
 
     Triangle tri = { vec3(1,1,-1), vec3(2,2,-1), vec3(3,1,0) };
