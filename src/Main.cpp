@@ -171,11 +171,12 @@ int main()
     uint32_t vertexArray = CreateBuffers();
     g_avgImage = CreateAvgImage(g_winWidth, g_winHeight);
 
-    std::array<uint32_t, 4> shaderPrograms;
+    std::array<uint32_t, 5> shaderPrograms;
     shaderPrograms[0] = CreateShaders("src/vert.glsl", "src/frag1.glsl");
     shaderPrograms[1] = CreateShaders("src/vert.glsl", "src/frag2.glsl");
     shaderPrograms[2] = CreateShaders("src/vert.glsl", "src/frag3.glsl");
     shaderPrograms[3] = CreateShaders("src/vert.glsl", "src/frag4.glsl");
+    shaderPrograms[4] = CreateShaders("src/vert.glsl", "src/frag5.glsl");
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
